@@ -12,7 +12,9 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
-from lion_pytorch import Lion
+from muon import MuonWithAuxAdam
+import torch.distributed as dist
+import os
 
 # 1. 定义一个更强大的CNN模型 (替代 LeNet-5)
 class ImprovedNet(nn.Module):
@@ -108,22 +110,51 @@ def test_model(model, test_loader, criterion, device):
 
 # 5. 主函数
 def main():
+    # --- 修复Muon分布式环境错误 ---
+    # 模拟一个单进程的分布式环境以满足Muon优化器的要求
+    os.environ['MASTER_ADDR'] = '127.0.0.1' # 使用 127.0.0.1 避免 'localhost' 解析问题
+    os.environ['MASTER_PORT'] = '12355'
+    dist.init_process_group(backend='gloo', rank=0, world_size=1)
+
     # 设置设备 (使用GPU如果可用)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     # 超参数
     batch_size = 64
-    epochs = 30 # 增加训练周期，充分利用GPU和数据增强
-    learning_rate = 0.001 # Lion通常使用比Adam稍小的学习率
+    epochs = 30 # 保持30个周期进行充分训练
     
     # 准备数据
     train_loader, test_loader = prepare_data(batch_size)
     
     # 初始化模型、损失函数和优化器
-    model = ImprovedNet().to(device) # <- 使用我们改进后的模型
+    model = ImprovedNet().to(device)
     criterion = nn.CrossEntropyLoss()
-    optimizer = Lion(model.parameters(), lr=learning_rate) # <- 使用Lion优化器
+
+    # --- 最终修复：将 Muon 仅应用于全连接层 ---
+    # 这是一个更安全、更稳定的策略，以避开 Muon 在卷积层上可能存在的 bug
+    
+    muon_params = []
+    adam_params = []
+
+    # 使用 named_parameters() 来根据层名和参数维度进行分组
+    for name, p in model.named_parameters():
+        if 'fc_layers' in name and p.ndim == 2:
+            # 如果参数在 'fc_layers' 中且是权重矩阵 (2D), 则使用 Muon
+            print(f"Applying Muon to: {name}")
+            muon_params.append(p)
+        else:
+            # 其他所有参数 (所有卷积层, 所有偏置项, 所有BN层) 使用 AdamW
+            adam_params.append(p)
+
+    # 2. 为两组参数分别设置超参数
+    param_groups = [
+        {'params': muon_params, 'use_muon': True, 'lr': 0.02},
+        {'params': adam_params, 'use_muon': False, 'lr': 3e-4, 'betas': (0.9, 0.95)}
+    ]
+
+    # 3. 初始化 MuonWithAuxAdam 优化器
+    optimizer = MuonWithAuxAdam(param_groups)
     
     # 训练和测试
     best_accuracy = 0
