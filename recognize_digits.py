@@ -13,43 +13,36 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 
-# 1. 定义 LeNet-5 网络模型
-class LeNet(nn.Module):
+# 1. 定义一个更强大的CNN模型 (替代 LeNet-5)
+class ImprovedNet(nn.Module):
     def __init__(self):
-        super(LeNet, self).__init__()
+        super(ImprovedNet, self).__init__()
         # 卷积层部分
+        # 初始输入: 1x28x28
         self.conv_layers = nn.Sequential(
-            # 输入: 1x28x28
-            # 第一个卷积层: 1个输入通道, 6个输出通道, 5x5的卷积核
-            # (28-5)/1 + 1 = 24. 输出: 6x24x24
-            nn.Conv2d(in_channels=1, out_channels=6, kernel_size=5, stride=1, padding=2), # Padding=2使得输出尺寸仍为28x28
+            # 第一个卷积块
+            nn.Conv2d(in_channels=1, out_channels=32, kernel_size=3, padding=1), # 28x28 -> 32x28x28
+            nn.BatchNorm2d(32),
             nn.ReLU(),
-            # 第一个池化层: 2x2的最大池化
-            # 28 / 2 = 14. 输出: 6x14x14
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            
-            # 第二个卷积层: 6个输入通道, 16个输出通道, 5x5的卷积核
-            # (14-5)/1 + 1 = 10. 输出: 16x10x10
-            nn.Conv2d(in_channels=6, out_channels=16, kernel_size=5, stride=1),
+            # 第二个卷积块
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1), # 32x28x28 -> 64x28x28
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-            # 第二个池化层: 2x2的最大池化
-            # 10 / 2 = 5. 输出: 16x5x5
-            nn.MaxPool2d(kernel_size=2, stride=2)
+            nn.MaxPool2d(kernel_size=2, stride=2), # 64x28x28 -> 64x14x14
+            nn.Dropout(0.25)
         )
+        
         # 全连接层部分
         self.fc_layers = nn.Sequential(
-            # 将16x5x5的张量展平为 16*5*5 = 400
-            nn.Linear(in_features=16 * 5 * 5, out_features=120),
+            nn.Linear(64 * 14 * 14, 128), # 展平后为 12544
             nn.ReLU(),
-            nn.Linear(in_features=120, out_features=84),
-            nn.ReLU(),
-            # 输出层: 84个输入, 10个输出 (对应0-9十个数字)
-            nn.Linear(in_features=84, out_features=10)
+            nn.Dropout(0.5),
+            nn.Linear(128, 10)
         )
 
     def forward(self, x):
         x = self.conv_layers(x)
-        x = x.view(-1, 16 * 5 * 5) # 展平操作
+        x = x.view(-1, 64 * 14 * 14) # 展平操作
         x = self.fc_layers(x)
         return x
 
@@ -113,23 +106,26 @@ def main():
 
     # 超参数
     batch_size = 64
-    epochs = 10 # 我们先训练10个周期看看效果
-    learning_rate = 0.01
+    epochs = 15 # 增加训练周期以适应更复杂的模型
+    learning_rate = 0.001 # 为Adam优化器设置一个合适的学习率
     
     # 准备数据
     train_loader, test_loader = prepare_data(batch_size)
     
     # 初始化模型、损失函数和优化器
-    model = LeNet().to(device)
+    model = ImprovedNet().to(device) # <- 使用我们改进后的模型
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=learning_rate)
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate) # <- 使用Adam优化器
     
     # 训练和测试
+    best_accuracy = 0
     for epoch in range(1, epochs + 1):
         train_model(model, train_loader, optimizer, criterion, device, epoch)
-        test_model(model, test_loader, criterion, device)
+        accuracy = test_model(model, test_loader, criterion, device)
+        best_accuracy = max(accuracy, best_accuracy)
         
-    print("Baseline model training finished.")
+    print("Improved model training finished.")
+    print(f"Highest accuracy achieved: {best_accuracy:.2f}%")
 
 
 if __name__ == '__main__':
