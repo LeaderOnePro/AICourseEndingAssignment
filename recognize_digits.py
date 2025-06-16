@@ -12,6 +12,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
+from lion_pytorch import Lion
 
 # 1. 定义一个更强大的CNN模型 (替代 LeNet-5)
 class ImprovedNet(nn.Module):
@@ -48,15 +49,22 @@ class ImprovedNet(nn.Module):
 
 # 2. 准备数据
 def prepare_data(batch_size=64):
-    # 定义数据预处理
-    transform = transforms.Compose([
+    # 为训练集定义包含数据增强的预处理
+    train_transform = transforms.Compose([
+        transforms.RandomAffine(degrees=10, translate=(0.1, 0.1), scale=(0.9, 1.1)), # 旋转, 平移, 缩放
         transforms.ToTensor(), # 将图片转换为Tensor
         transforms.Normalize((0.1307,), (0.3081,)) # 标准化
     ])
     
+    # 为测试集定义不包含数据增强的预处理
+    test_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,))
+    ])
+    
     # 下载/加载训练集和测试集
-    train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transform)
-    test_dataset = datasets.MNIST(root='./data', train=False, download=True, transform=transform)
+    train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=train_transform) # 使用带增强的transform
+    test_dataset = datasets.MNIST(root='./data', train=False, download=True, transform=test_transform) # 使用不带增强的transform
     
     # 创建DataLoader
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -106,8 +114,8 @@ def main():
 
     # 超参数
     batch_size = 64
-    epochs = 15 # 增加训练周期以适应更复杂的模型
-    learning_rate = 0.001 # 为Adam优化器设置一个合适的学习率
+    epochs = 30 # 增加训练周期，充分利用GPU和数据增强
+    learning_rate = 0.001 # Lion通常使用比Adam稍小的学习率
     
     # 准备数据
     train_loader, test_loader = prepare_data(batch_size)
@@ -115,7 +123,7 @@ def main():
     # 初始化模型、损失函数和优化器
     model = ImprovedNet().to(device) # <- 使用我们改进后的模型
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate) # <- 使用Adam优化器
+    optimizer = Lion(model.parameters(), lr=learning_rate) # <- 使用Lion优化器
     
     # 训练和测试
     best_accuracy = 0
