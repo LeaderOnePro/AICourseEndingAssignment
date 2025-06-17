@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader
 from muon import MuonWithAuxAdam
 import torch.distributed as dist
 import os
+from torch.optim.lr_scheduler import OneCycleLR
 
 # 1. 定义一个更强大的CNN模型 (替代 LeNet-5)
 class ImprovedNet(nn.Module):
@@ -75,7 +76,7 @@ def prepare_data(batch_size=64):
     return train_loader, test_loader
 
 # 3. 训练函数
-def train_model(model, train_loader, optimizer, criterion, device, epoch):
+def train_model(model, train_loader, optimizer, criterion, device, epoch, scheduler):
     model.train() # 设置为训练模式
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
@@ -84,6 +85,7 @@ def train_model(model, train_loader, optimizer, criterion, device, epoch):
         loss = criterion(output, target) # 计算损失
         loss.backward() # 反向传播
         optimizer.step() # 更新权重
+        scheduler.step() # <- 在每个批次后更新学习率
         if batch_idx % 100 == 0:
             print(f'Train Epoch: {epoch} [{batch_idx * len(data)}/{len(train_loader.dataset)} '
                   f'({100. * batch_idx / len(train_loader):.0f}%)]\tLoss: {loss.item():.6f}')
@@ -156,10 +158,18 @@ def main():
     # 3. 初始化 MuonWithAuxAdam 优化器
     optimizer = MuonWithAuxAdam(param_groups)
     
+    # 4. 添加 OneCycleLR 学习率调度器
+    scheduler = OneCycleLR(
+        optimizer,
+        max_lr=[0.02, 3e-4], # 对应 Muon 和 AdamW 两组的最高学习率
+        epochs=epochs,
+        steps_per_epoch=len(train_loader)
+    )
+
     # 训练和测试
     best_accuracy = 0
     for epoch in range(1, epochs + 1):
-        train_model(model, train_loader, optimizer, criterion, device, epoch)
+        train_model(model, train_loader, optimizer, criterion, device, epoch, scheduler)
         accuracy = test_model(model, test_loader, criterion, device)
         best_accuracy = max(accuracy, best_accuracy)
         
