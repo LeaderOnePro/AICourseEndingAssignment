@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-@software: PyCharm
+@software: Cursor
 @file: recognize_digits.py
-@time: 2024/5/24 10:00
+@time: 2024/6/16 15:00
 @author: Gemini 2.5 Pro,Claude Sonnet 4
 """ 
 
