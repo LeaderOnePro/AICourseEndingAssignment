@@ -3,8 +3,7 @@
 @software: PyCharm
 @file: recognize_digits.py
 @time: 2024/5/24 10:00
-@author: B. AI
-@description: 简化版手写数字识别 - 不依赖muon包
+@author: Gemini 2.5 Pro,Claude Sonnet 4
 """ 
 
 import torch
