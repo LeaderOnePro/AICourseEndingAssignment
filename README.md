@@ -22,6 +22,10 @@
 ├── requirements.txt        # 项目基础依赖
 ├── best_simple_model.pth   # 训练过程中最佳模型权重
 ├── final_simple_model.pth  # 最终模型权重
+├── result.png              # 最终手写数字识别结果图
+├── 结课作业-多选项2.md      # 作业要求说明
+├── 结课报告.md             # Markdown 格式的结课报告
+├── 结课报告.tex            # LaTeX 格式的结课报告
 ├── data/                     # MNIST 数据集目录
 └── README.md               # 本说明文件
 ```
@@ -118,27 +122,35 @@ python recognize_digits.py
    - 是否使用数据增强
 
 ## 模型架构
+
+最终模型 `ImprovedNet` 是一个包含三个卷积块的深度卷积神经网络，具体结构如下：
+
 ```
 ImprovedNet(
   (conv_layers): Sequential(
-    (0): Conv2d(1, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-    (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-    (2): ReLU()
-    (3): Conv2d(32, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-    (4): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-    (5): ReLU()
-    (6): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
-    (7): Dropout(p=0.25, inplace=False)
+    # Block 1
+    (0): Conv2d(1, 32, kernel_size=3, padding=1), ReLU, BatchNorm2d
+    (1): Conv2d(32, 32, kernel_size=3, padding=1), ReLU, BatchNorm2d
+    (2): MaxPool2d(kernel_size=2), Dropout(0.25)
+    
+    # Block 2
+    (3): Conv2d(32, 64, kernel_size=3, padding=1), ReLU, BatchNorm2d
+    (4): Conv2d(64, 64, kernel_size=3, padding=1), ReLU, BatchNorm2d
+    (5): MaxPool2d(kernel_size=2), Dropout(0.25)
+
+    # Block 3
+    (6): Conv2d(64, 128, kernel_size=3, padding=1), ReLU, BatchNorm2d
+    (7): Conv2d(128, 128, kernel_size=3, padding=1), ReLU, BatchNorm2d
+    (8): AdaptiveAvgPool2d(1), Dropout(0.25)
   )
-  (fc_layers): Sequential(
-    (0): Linear(in_features=12544, out_features=128, bias=True)
-    (1): ReLU()
-    (2): Dropout(p=0.5, inplace=False)
-    (3): Linear(in_features=128, out_features=10, bias=True)
+  (classifier): Sequential(
+    (0): Linear(128 -> 256), ReLU, Dropout(0.5)
+    (1): Linear(256 -> 128), ReLU, Dropout(0.3)
+    (2): Linear(128 -> 10)
   )
 )
 ```
 
 ## 性能指标
-- 测试准确率: 99.6+ %
+- 测试准确率: **99.65%**
 - 训练设备: CPU/GPU (自动检测)
